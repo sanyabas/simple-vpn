@@ -19,10 +19,10 @@ class CryptoClient:
         password = get_password(self._filename)
         ciphertext = encrypt(password, client_key)
         print(client_key)
-        self.send(ciphertext)
+        self._send(ciphertext)
 
         # Get session key double encrypted
-        ciphertext = self.recv(48)
+        ciphertext = self._recv(80)
         ciphertext = decrypt(password, ciphertext)
         self._key = decrypt(client_key, ciphertext)
         print(self._key)
@@ -30,32 +30,48 @@ class CryptoClient:
         # Check key
         r_a = Random.get_random_bytes(16)
         ciphertext = encrypt(self._key, r_a)
-        self.send(ciphertext)
+        self._send(ciphertext)
         print('r_a', r_a)
 
-        ciphertext = self.recv(48)
+        ciphertext = self._recv(64)
         r_ab = decrypt(self._key, ciphertext)
         if r_ab[:16] != r_a:
             raise ValueError('r_a invalid')
 
         r_b = r_ab[16:]
         ciphertext = encrypt(self._key, r_b)
-        self.send(ciphertext)
+        self._send(ciphertext)
         print('r_b', r_b)
 
     def connect(self, host: str, port: int):
         self.socket.connect((host, port))
         self._get_key()
 
-    def send(self, data: bytes):
+    def _send(self, data: bytes):
+        print('sent', data)
         self.socket.sendall(data)
 
-    def recv(self, size: int) -> bytes:
+    def send(self, data: bytes):
+        ciphertext = encrypt(self._key, data)
+
+        self._send(ciphertext)
+
+    def _recv(self, size: int) -> bytes:
         return self.socket.recv(size)
+
+    def recv(self) -> bytes:
+        data = b''
+        while True:
+            tmp = self._recv(1024)
+            if not tmp:
+                break
+            data += tmp
+
+        return data
 
 
 if __name__ == '__main__':
     client = CryptoClient('./password.txt')
     client.connect(HOST, PORT)
-    client.send(b'AAAAAAAAAAAAAAAA\n')
-    print(client.recv(2048))
+    client.send(b'AAAAAAAAAAAAAAAAAAAAa\n')
+    print(client.recv())
