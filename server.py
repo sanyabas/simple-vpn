@@ -3,6 +3,7 @@ from Crypto.Random import get_random_bytes
 from util import get_password, encrypt, decrypt
 
 import socket
+import time
 
 
 class CryptoHandler:
@@ -13,7 +14,6 @@ class CryptoHandler:
 
     def setup(self):
         self._session_key = get_random_bytes(16)
-        print(self._session_key)
         ciphertext = self._socket.recv(48)
         client_key = decrypt(self._password, ciphertext)
 
@@ -26,13 +26,13 @@ class CryptoHandler:
         r_b = get_random_bytes(16)
         ciphertext = encrypt(self._session_key, r_a + r_b)
         self._socket.sendall(ciphertext)
-        print('r_a', r_a)
-        print('r_b', r_b)
 
         ciphertext = self._socket.recv(48)
         r_b_received = decrypt(self._session_key, ciphertext)
         if r_b_received != r_b:
             raise ValueError('r_b invalid')
+
+        print('Secure connection established')
 
         self._socket.settimeout(0.5)
 
@@ -41,7 +41,6 @@ class CryptoHandler:
         while True:
             try:
                 tmp = self._socket.recv(1024)
-                print('tmp', tmp)
                 data += tmp
 
                 if not tmp:
@@ -52,16 +51,21 @@ class CryptoHandler:
         return data
 
     def handle(self) -> None:
-        ciphertext = self._recv()
-        if not ciphertext:
-            print('no ciphertext')
-            return
+        while True:
+            ciphertext = self._recv()
+            if not ciphertext:
+                time.sleep(0.25)
+                continue
 
-        data = decrypt(self._session_key, ciphertext)
+            data = decrypt(self._session_key, ciphertext)
 
-        print(f'{self._address}: {data}')
+            print(f'{self._address}: {data.decode()}')
 
-        self._socket.sendall(data)
+            response = input('>')
+
+            ciphertext = encrypt(self._session_key, response.encode())
+            self._socket.sendall(ciphertext)
+            print('sent', ciphertext)
 
 
 class CryptoServer:
